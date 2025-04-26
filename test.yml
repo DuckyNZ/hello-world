@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wdmslearnsamplefunction2-pvc
+  labels:
+    app: wdmslearnsamplefunction2
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi # Adjust storage size as needed. This maps to the shareQuota in the source template, but the unit is different and requires manual adjustment.
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: wdmslearnsamplefunction2-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 100Gi # Adjust storage size as needed, same as above
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain # Equivalent policy needs manual verification; options like Delete might not be available in all Kubernetes environments.
+  storageClassName: standard
+  local:
+    path: /mnt/data/wdmslearnsamplefunction2 #This path needs to be manually configured to point to an existing storage location. The ARM template maps to a specific storage account that needs to be mirrored in your k8s storage solution.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wdmslearnsamplefunction2-storage-credentials
+type: Opaque # This is a generic secret type; might require adjustment based on how storage credentials are managed in your Kubernetes setup.
+data:
+  # Add your Storage Account connection string here, and other necessary credentials.
+  # This section requires manual configuration and population.  The ARM template doesn't directly provide this information.
+  connectionString: "<YOUR_STORAGE_CONNECTION_STRING>"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wdmslearnsamplefunction2
+spec:
+  selector:
+    matchLabels:
+      app: wdmslearnsamplefunction2
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: wdmslearnsamplefunction2
+    spec:
+      containers:
+      - name: wdmslearnsamplefunction2
+        image: "<YOUR_FUNCTION_APP_IMAGE>" # Needs manual configuration to specify the correct image.
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: azure-webjobs-storage
+          mountPath: /mnt/azure-webjobs-storage
+        - name: azure-webjobs-secrets
+          mountPath: /mnt/azure-webjobs-secrets
+        env:
+          - name: WEBSITE_RUN_FROM_PACKAGE
+            value: "1"
+          - name: AzureWebJobsStorage
+            valueFrom:
+              secretKeyRef:
+                name: wdmslearnsamplefunction2-storage-credentials
+                key: connectionString
+      volumes:
+      - name: azure-webjobs-storage
+        persistentVolumeClaim:
+          claimName: wdmslearnsamplefunction2-pvc
+      - name: azure-webjobs-secrets
+        secret:
+          secretName: wdmslearnsamplefunction2-secrets #This needs to point to a secret storing other sensitive information.
+          # This requires manual configuration and population similar to the storage credentials above.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wdmslearnsamplefunction2-service
+spec:
+  selector:
+    app: wdmslearnsamplefunction2
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+type: LoadBalancer #The type needs manual verification; NodePort might be preferable depending on your network configuration
