@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: wdmslearnsamplefunction2-pv
+spec:
+  capacity:
+    storage: 102400Mi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: azurefile
+  azureFile:
+    secretName: wdmslearnsamplefunction2-secret
+    shareName: wdmslearnsamplefunction20230219193844
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wdmslearnsamplefunction2-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 102400Mi
+  storageClassName: azurefile
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile
+provisioner: "kubernetes.io/azure-file"
+parameters:
+  storageAccount:
+    wdmslearnsamplefunction2 # Manual input, replace with actual storage account name
+  storageAccountName:
+    wdmslearnsamplefunction2 # Manual input, replace with actual storage account name
+  accessKey:
+    $(az storage account show-connection-string --name wdmslearnsamplefunction2 --query connectionString --output tsv | cut -d ';' -f 2 | cut -d '=' -f 2) # Manual input, replace with actual access key
+  resourceGroupName: $(az group show --name <resource-group-name> --query name -o tsv)  # Manual Input, Replace <resource-group-name> with your resource group name
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wdmslearnsamplefunction2-secret
+type: Opaque
+stringData:
+  shareName: wdmslearnsamplefunction20230219193844
+  secretKey: <access-key> # Manual Input, Replace <access-key> with your access key from Azure Storage account
+  #Additional secrets may need to be added for other resources from Azure Resource Manager template such as storage account name, connection string etc.
+  #Please refer to Kubernetes documentation for adding secrets and mounting them to application pods
+# WARNING: This conversion is incomplete.  The Azure ARM template includes many storage-related resources (blob services, queues, tables) that don't have direct equivalents in Kubernetes. The generated Kubernetes manifests handle the file share.  You'll need to create additional Kubernetes resources and configurations to manage the blob storage, queues, and tables if your application requires them.  Also note manual inputs are required to populate the Secret with the necessary credentials.
+# WARNING: Access keys should ideally not be hardcoded into Kubernetes configurations.  Consider using Kubernetes secrets management best practices for improved security.
+# WARNING: Network ACLs, CORS rules, and encryption settings from the source template are not represented here. You'll need to manually configure appropriate network policies and encryption in your Kubernetes cluster.
